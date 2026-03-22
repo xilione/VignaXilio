@@ -1,0 +1,109 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the VignaMeteo app.",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "savedLocations": {
+          "type": "array",
+          "description": "Locations saved by the user.",
+          "items": {
+            "$ref": "#/entities/Location"
+          }
+        }
+      },
+      "required": ["email"]
+    },
+    "Location": {
+      "title": "Location",
+      "description": "A geographical location.",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the location."
+        },
+        "latitude": {
+          "type": "number",
+          "description": "The latitude of the location."
+        },
+        "longitude": {
+          "type": "number",
+          "description": "The longitude of the location."
+        },
+        "region": {
+          "type": "string",
+          "description": "The region of the location."
+        },
+        "phenologicalStage": {
+          "type": "string",
+          "description": "The current phenological stage of the vine."
+        }
+      },
+      "required": ["name", "latitude", "longitude"]
+    },
+    "Treatment": {
+      "title": "Treatment",
+      "description": "A treatment applied to a vineyard.",
+      "type": "object",
+      "properties": {
+        "locationName": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "product": {
+          "type": "string"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": ["locationName", "date", "product"]
+    },
+    "Irrigation": {
+      "title": "Irrigation",
+      "description": "An irrigation event applied to a vineyard.",
+      "type": "object",
+      "properties": {
+        "locationName": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of water applied (e.g. mm or liters)"
+        },
+        "notes": {
+          "type": "string"
+        }
+      },
+      "required": ["locationName", "date", "amount"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "#/entities/User",
+      "description": "Stores user profiles and their saved locations."
+    },
+    "/users/{userId}/treatments/{treatmentId}": {
+      "schema": "#/entities/Treatment",
+      "description": "Stores treatments for a user's vineyards."
+    },
+    "/users/{userId}/irrigations/{irrigationId}": {
+      "schema": "#/entities/Irrigation",
+      "description": "Stores irrigation events for a user's vineyards."
+    }
+  }
+}

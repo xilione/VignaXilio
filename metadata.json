@@ -1,0 +1,5 @@
+{
+  "name": "VignaMeteo",
+  "description": "Assistente IA per vigneti con meteo, analisi immagini e sintesi vocale.",
+  "requestFramePermissions": []
+}

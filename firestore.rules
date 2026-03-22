@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (matches Firebase Auth uid)
+    // Fields:
+    //   - email: string (required) - User's email address
+    //   - savedLocations: list (optional) - Array of Location objects
+    //     - Location object:
+    //       - name: string (required)
+    //       - latitude: number (required)
+    //       - longitude: number (required)
+    //       - region: string (optional)
+    //       - phenologicalStage: string (optional)
+    //
+    // Collection: users/{userId}/treatments
+    // Document ID: {treatmentId}
+    // Fields:
+    //   - locationName: string (required)
+    //   - date: string (required, ISO 8601)
+    //   - product: string (required)
+    //   - notes: string (optional)
+    //
+    // Collection: users/{userId}/irrigations
+    // Document ID: {irrigationId}
+    // Fields:
+    //   - locationName: string (required)
+    //   - date: string (required, ISO 8601)
+    //   - amount: number (required)
+    //   - notes: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isValidEmail(email) {
+      return email is string &&
+        email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string &&
+        dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isValidLocation(loc) {
+      return loc is map &&
+        loc.keys().hasAll(['name', 'latitude', 'longitude']) &&
+        loc.name is string && loc.name.size() > 0 && loc.name.size() < 100 &&
+        loc.latitude is number &&
+        loc.longitude is number &&
+        (!('region' in loc) || (loc.region is string && loc.region.size() < 100)) &&
+        (!('phenologicalStage' in loc) || (loc.phenologicalStage is string && loc.phenologicalStage.size() < 50));
+    }
+
+    function areValidLocations(locations) {
+      return locations is list && locations.size() <= 50; // Limit to 50 saved locations
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['email']) &&
+             isValidEmail(data.email) &&
+             (!('savedLocations' in data) || areValidLocations(data.savedLocations));
+    }
+
+    function isValidTreatment(data) {
+      return data.keys().hasAll(['locationName', 'date', 'product']) &&
+             data.locationName is string && data.locationName.size() > 0 && data.locationName.size() < 100 &&
+             isValidDateString(data.date) &&
+             data.product is string && data.product.size() > 0 && data.product.size() < 100 &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 1000));
+    }
+
+    function isValidIrrigation(data) {
+      return data.keys().hasAll(['locationName', 'date', 'amount']) &&
+             data.locationName is string && data.locationName.size() > 0 && data.locationName.size() < 100 &&
+             isValidDateString(data.date) &&
+             data.amount is number && data.amount > 0 &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() < 1000));
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) &&
+                    request.resource.data.email == resource.data.email; // Email is immutable
+      allow delete: if isOwner(userId);
+
+      match /treatments/{treatmentId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidTreatment(request.resource.data);
+        allow update: if isOwner(userId) && isValidTreatment(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+
+      match /irrigations/{irrigationId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidIrrigation(request.resource.data);
+        allow update: if isOwner(userId) && isValidIrrigation(request.resource.data);
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}
