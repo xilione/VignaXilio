@@ -20,12 +20,13 @@ import { TreatmentRegistry } from '@/components/TreatmentRegistry';
 import { PhenologySelector } from '@/components/PhenologySelector';
 import { SoilAndGDD } from '@/components/SoilAndGDD';
 import { IrrigationManager } from '@/components/IrrigationManager';
+import { VineyardMap } from '@/components/VineyardMap';
 
 // Coordinate di default (Quartucciu, Sardegna)
 const DEFAULT_LOCATION: Location = {
   name: 'Quartucciu',
-  latitude: 39.2519,
-  longitude: 9.1775,
+  latitude: 39.2552,
+  longitude: 9.2945,
   region: 'Sardegna, Italia'
 };
 
@@ -201,6 +202,12 @@ function App() {
                     <CurrentWeather 
                       weather={weatherData} 
                       locationName={selectedLocation.name}
+                    />
+                    
+                    <VineyardMap 
+                      latitude={selectedLocation.latitude} 
+                      longitude={selectedLocation.longitude} 
+                      name={selectedLocation.name} 
                     />
                     
                     <HourlyChart hourly={weatherData.hourly} />
