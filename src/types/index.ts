@@ -54,6 +54,7 @@ export interface Location {
   longitude: number;
   region?: string;
   phenologicalStage?: string;
+  customName?: string;
 }
 
 export interface TreatmentRecommendation {
@@ -62,6 +63,9 @@ export interface TreatmentRecommendation {
   conditions: string[];
   bestTime: string;
   warnings: string[];
+  suggestedProducts?: string[];
+  applicationMethod?: string;
+  fertilizationAdvice?: string;
 }
 
 export interface Treatment {

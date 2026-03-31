@@ -6,11 +6,9 @@ const API_BASE = 'https://api.open-meteo.com/v1/forecast';
 export function useWeather() {
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const fetchWeather = useCallback(async (location: Location) => {
     setLoading(true);
-    setError(null);
     
     try {
       const params = new URLSearchParams({
@@ -84,13 +82,13 @@ export function useWeather() {
 
       setWeatherData(formattedData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Errore sconosciuto');
+      console.error(err instanceof Error ? err.message : 'Errore sconosciuto');
     } finally {
       setLoading(false);
     }
   }, []);
 
-  return { weatherData, loading, error, fetchWeather };
+  return { weatherData, loading, fetchWeather };
 }
 
 export function useGeocoding() {
@@ -133,7 +131,7 @@ export function useGeocoding() {
       
       let fetchedLocations: Location[] = [];
       if (data.results) {
-        fetchedLocations = data.results.map((result: any) => ({
+        fetchedLocations = data.results.map((result: { name: string; latitude: number; longitude: number; admin1?: string; country?: string }) => ({
           name: result.name,
           latitude: result.latitude,
           longitude: result.longitude,
@@ -146,7 +144,7 @@ export function useGeocoding() {
       } else {
         setLocations(fetchedLocations);
       }
-    } catch (error) {
+    } catch {
       setLocations([]);
     } finally {
       setLoading(false);
@@ -301,11 +299,11 @@ function calculateTreatmentConditions(current: WeatherData['current'], daily: We
   return { value: score, status: 'bad', description: issues.join('. ') };
 }
 
-export function getTreatmentRecommendations(weather: WeatherData): TreatmentRecommendation[] {
+export function getTreatmentRecommendations(weather: WeatherData, phenologicalStage?: string): TreatmentRecommendation[] {
   const current = weather.current;
   const daily = weather.daily[0];
   
-  return [
+  const recommendations: TreatmentRecommendation[] = [
     {
       type: 'Trattamento Fungicida',
       suitable: current.windSpeed < 15 && daily.precipitation < 2 && current.temperature > 5 && current.temperature < 32,
@@ -315,7 +313,11 @@ export function getTreatmentRecommendations(weather: WeatherData): TreatmentReco
         `Temperatura: ${current.temperature >= 10 && current.temperature <= 28 ? '✓ Ottimale' : '⚠ Da valutare'} (${current.temperature}°C)`
       ],
       bestTime: current.temperature > 25 ? 'Early morning (6-9h) o sera (dopo 18h)' : 'Mattina (8-11h)',
-      warnings: daily.precipitation > 2 ? ['Rischio dilavamento se piove nelle 6h successive'] : []
+      warnings: daily.precipitation > 2 ? ['Rischio dilavamento se piove nelle 6h successive'] : [],
+      suggestedProducts: phenologicalStage === 'Fioritura' 
+        ? ['Prodotti a base di Zolfo bagnabile', 'Antioidici sistemici'] 
+        : ['Rame (Poltiglia Bordolese)', 'Zolfo'],
+      applicationMethod: 'Atomizzatore a basso volume, bagnatura uniforme della chioma.'
     },
     {
       type: 'Trattamento Insetticida',
@@ -326,7 +328,9 @@ export function getTreatmentRecommendations(weather: WeatherData): TreatmentReco
         `Temperatura: ${current.temperature >= 12 && current.temperature <= 25 ? '✓ Ottimale' : '⚠ Da valutare'} (${current.temperature}°C)`
       ],
       bestTime: 'Mattina presto (7-10h) quando gli insetti sono meno attivi',
-      warnings: current.temperature > 28 ? ['Evitare ore calde - rischio volatilizzazione'] : []
+      warnings: current.temperature > 28 ? ['Evitare ore calde - rischio volatilizzazione'] : [],
+      suggestedProducts: ['Bacillus thuringiensis (se biologico)', 'Insetticidi specifici per Tignola'],
+      applicationMethod: 'Intervenire preferibilmente nelle ore serali o mattutine.'
     },
     {
       type: 'Concimazione Fogliare',
@@ -337,9 +341,48 @@ export function getTreatmentRecommendations(weather: WeatherData): TreatmentReco
         `Precipitazioni: ${daily.precipitation === 0 ? '✓ Assenti' : '✗ Previste'} (${daily.precipitation} mm)`
       ],
       bestTime: 'Mattina (8-10h) con umidità moderata',
-      warnings: current.humidity > 80 ? ['Umidità alta riduce assorbimento fogliare'] : []
+      warnings: current.humidity > 80 ? ['Umidità alta riduce assorbimento fogliare'] : [],
+      suggestedProducts: phenologicalStage === 'Germogliamento' 
+        ? ['Biostimolanti a base di amminoacidi', 'Microelementi (Boro, Zinco)']
+        : ['Concimi NPK idrosolubili bilanciati'],
+      applicationMethod: 'Nebulizzazione fine, bagnatura completa di entrambe le pagine fogliari.'
     }
   ];
+
+  // Aggiunta consiglio concimazione specifica per fase
+  let fertAdvice = '';
+  switch (phenologicalStage) {
+    case 'Germogliamento':
+      fertAdvice = 'Fase critica per lo sviluppo vegetativo. Consigliata concimazione azotata al suolo e biostimolanti fogliari per favorire la spinta iniziale.';
+      break;
+    case 'Fioritura':
+      fertAdvice = 'Evitare eccessi di azoto. Consigliato Boro per via fogliare per favorire l\'allegagione e la fertilità del polline.';
+      break;
+    case 'Allegagione':
+      fertAdvice = 'Supporto con Magnesio e Potassio per lo sviluppo iniziale dei frutti. Monitorare lo stress idrico.';
+      break;
+    case 'Chiusura grappolo':
+      fertAdvice = 'Intervenire con Calcio per migliorare la resistenza della buccia e prevenire il marciume acido.';
+      break;
+    case 'Invaiatura':
+      fertAdvice = 'Sospendere Azoto. Incrementare Potassio per favorire l\'accumulo di zuccheri e la colorazione.';
+      break;
+    case 'Maturazione':
+      fertAdvice = 'Interventi limitati. Possibile uso di concimi a base di Potassio se necessario, ma attenzione ai tempi di carenza.';
+      break;
+    default:
+      fertAdvice = 'Monitorare lo stato nutrizionale generale della pianta.';
+  }
+
+  if (fertAdvice) {
+    recommendations.forEach(rec => {
+      if (rec.type === 'Concimazione Fogliare') {
+        rec.fertilizationAdvice = fertAdvice;
+      }
+    });
+  }
+
+  return recommendations;
 }
 
 function getWeatherCondition(code: number): string {

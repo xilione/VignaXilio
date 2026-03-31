@@ -126,7 +126,10 @@ export function MultiVineyardDashboard({ onSelectLocation }: DashboardProps) {
                     <MapPin className="h-5 w-5" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg">{loc.name}</h3>
+                    <h3 className="font-semibold text-lg">{loc.customName || loc.name}</h3>
+                    {loc.customName && (
+                      <p className="text-xs text-muted-foreground italic">{loc.name}</p>
+                    )}
                     {loc.phenologicalStage && (
                       <p className="text-xs text-muted-foreground">{loc.phenologicalStage}</p>
                     )}

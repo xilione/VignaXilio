@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { GoogleGenAI } from '@google/genai';
-import { Bot, Image as ImageIcon, Search, Loader2, Volume2 } from 'lucide-react';
+import { Bot, Image as ImageIcon, Search, Loader2, Volume2, Beaker, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,12 +17,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
+interface GroundingLink {
+  uri: string;
+  title?: string;
+}
+
 export function AIAssistant() {
   // State for Meteo
   const [meteoQuery, setMeteoQuery] = useState('Previsioni meteo per i vigneti in Toscana questa settimana');
   const [meteoResult, setMeteoResult] = useState('');
-  const [meteoLinks, setMeteoLinks] = useState<any[]>([]);
+  const [meteoLinks, setMeteoLinks] = useState<GroundingLink[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+
+  // State for Prodotti
+  const [prodottiQuery, setProdottiQuery] = useState('Consiglia trattamenti per peronospora con prodotti commerciali (anche con patentino)');
+  const [prodottiResult, setProdottiResult] = useState('');
+  const [prodottiLinks, setProdottiLinks] = useState<GroundingLink[]>([]);
+  const [isSearchingProdotti, setIsSearchingProdotti] = useState(false);
 
   // State for Analisi
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -62,7 +73,7 @@ export function AIAssistant() {
       
       const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
       if (chunks) {
-        const links = chunks.map((c: any) => c.web).filter(Boolean);
+        const links = chunks.map((c) => c.web).filter((web): web is GroundingLink => !!web);
         setMeteoLinks(links);
       }
     } catch (error) {
@@ -70,6 +81,35 @@ export function AIAssistant() {
       setMeteoResult('Errore durante la ricerca.');
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleProdottiSearch = async () => {
+    if (!prodottiQuery) return;
+    setIsSearchingProdotti(true);
+    setProdottiResult('');
+    setProdottiLinks([]);
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prodottiQuery,
+        config: {
+          systemInstruction: "Sei un esperto agronomo specializzato in viticoltura. Quando consigli prodotti commerciali, specifica sempre se è necessario il 'patentino' (certificato di abilitazione all'acquisto e all'utilizzo dei prodotti fitosanitari) o se sono di libera vendita (PFnPE o PFnPO). Fornisci nomi commerciali reali e aggiornati disponibili sul mercato italiano.",
+          tools: [{ googleSearch: {} }]
+        }
+      });
+      setProdottiResult(response.text || 'Nessun risultato trovato.');
+      
+      const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      if (chunks) {
+        const links = chunks.map((c) => c.web).filter((web): web is GroundingLink => !!web);
+        setProdottiLinks(links);
+      }
+    } catch (error) {
+      console.error(error);
+      setProdottiResult('Errore durante la ricerca dei prodotti.');
+    } finally {
+      setIsSearchingProdotti(false);
     }
   };
 
@@ -160,20 +200,24 @@ export function AIAssistant() {
             Assistente IA Vigna
           </SheetTitle>
           <SheetDescription className="text-green-100">
-            Chiedi consigli meteo, cerca info o analizza le foto delle tue viti.
+            Consulenza agronomica, analisi foto e ricerca prodotti commerciali.
           </SheetDescription>
         </SheetHeader>
 
         <Tabs defaultValue="meteo" className="flex-1 flex flex-col overflow-hidden">
           <div className="px-6 pt-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="meteo" className="flex items-center gap-2">
-                <Search className="h-4 w-4" />
-                Ricerca
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="meteo" className="flex items-center gap-2 text-xs">
+                <Search className="h-3 w-3" />
+                Meteo
               </TabsTrigger>
-              <TabsTrigger value="analisi" className="flex items-center gap-2">
-                <ImageIcon className="h-4 w-4" />
-                Analisi Foto
+              <TabsTrigger value="prodotti" className="flex items-center gap-2 text-xs">
+                <Beaker className="h-3 w-3" />
+                Prodotti
+              </TabsTrigger>
+              <TabsTrigger value="analisi" className="flex items-center gap-2 text-xs">
+                <ImageIcon className="h-3 w-3" />
+                Analisi
               </TabsTrigger>
             </TabsList>
           </div>
@@ -217,6 +261,63 @@ export function AIAssistant() {
                       <h5 className="text-xs font-semibold text-muted-foreground mb-2">Fonti:</h5>
                       <ul className="space-y-1">
                         {meteoLinks.map((link, idx) => (
+                          <li key={idx}>
+                            <a href={link.uri} target="_blank" rel="noreferrer" className="text-xs text-green-600 hover:underline line-clamp-1">
+                              {link.title || link.uri}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+            </TabsContent>
+
+            <TabsContent value="prodotti" className="mt-0 space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-green-800 mb-1">
+                  <ShieldCheck className="h-4 w-4" />
+                  <label className="text-sm font-semibold">Consulenza Prodotti Commerciali</label>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Chiedi consigli su prodotti specifici, dosaggi e requisiti di patentino.
+                </p>
+                <div className="flex gap-2">
+                  <Input 
+                    value={prodottiQuery}
+                    onChange={(e) => setProdottiQuery(e.target.value)}
+                    placeholder="Es. Prodotti per oidio senza patentino..."
+                    onKeyDown={(e) => e.key === 'Enter' && handleProdottiSearch()}
+                  />
+                  <Button onClick={handleProdottiSearch} disabled={isSearchingProdotti} className="bg-green-700 hover:bg-green-800">
+                    {isSearchingProdotti ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+
+              {prodottiResult && (
+                <div className="bg-muted p-4 rounded-lg space-y-3">
+                  <div className="flex justify-between items-start">
+                    <h4 className="font-semibold text-sm text-green-800">Consigli Prodotti:</h4>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => playAudio(prodottiResult)}
+                      disabled={isSpeaking}
+                      className="h-8 px-2 text-green-700"
+                    >
+                      {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  <div className="text-sm whitespace-pre-wrap text-foreground prose prose-sm max-w-none">
+                    {prodottiResult}
+                  </div>
+                  {prodottiLinks.length > 0 && (
+                    <div className="pt-3 border-t border-border">
+                      <h5 className="text-xs font-semibold text-muted-foreground mb-2">Fonti e Schede Tecniche:</h5>
+                      <ul className="space-y-1">
+                        {prodottiLinks.map((link, idx) => (
                           <li key={idx}>
                             <a href={link.uri} target="_blank" rel="noreferrer" className="text-xs text-green-600 hover:underline line-clamp-1">
                               {link.title || link.uri}

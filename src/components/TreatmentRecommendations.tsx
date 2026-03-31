@@ -1,6 +1,7 @@
-import { CheckCircle, Clock, AlertTriangle, SprayCan, Bug, Leaf } from 'lucide-react';
+import { CheckCircle, Clock, AlertTriangle, SprayCan, Bug, Leaf, Beaker, Info, Sparkles } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { TreatmentRecommendation } from '@/types';
 
 interface TreatmentRecommendationsProps {
@@ -14,6 +15,19 @@ const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export function TreatmentRecommendations({ recommendations }: TreatmentRecommendationsProps) {
+  const openAIAssistant = () => {
+    // Trigger the AI Assistant sheet opening
+    const botButton = document.querySelector('button.fixed.bottom-6.right-6') as HTMLButtonElement;
+    if (botButton) {
+      botButton.click();
+      // We might need a small delay to let the sheet open before switching tabs
+      setTimeout(() => {
+        const prodottiTab = document.querySelector('[value="prodotti"]') as HTMLButtonElement;
+        if (prodottiTab) prodottiTab.click();
+      }, 100);
+    }
+  };
+
   return (
     <Card>
       <CardHeader className="bg-gradient-to-r from-blue-600/10 to-blue-500/5">
@@ -69,6 +83,51 @@ export function TreatmentRecommendations({ recommendations }: TreatmentRecommend
                         <Clock className="h-4 w-4 text-blue-500" />
                         <span className="text-sm"><strong>Orario consigliato:</strong> {rec.bestTime}</span>
                       </div>
+
+                      {rec.suggestedProducts && rec.suggestedProducts.length > 0 && (
+                        <div className="p-3 bg-blue-50/50 rounded-lg border border-blue-100">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <Beaker className="h-4 w-4 text-blue-600" />
+                              <p className="text-sm font-bold text-blue-800 uppercase tracking-tight">Prodotti Consigliati</p>
+                            </div>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-7 px-2 text-[10px] text-blue-600 hover:text-blue-700 hover:bg-blue-100/50 gap-1"
+                              onClick={openAIAssistant}
+                            >
+                              <Sparkles className="h-3 w-3" />
+                              Chiedi all'IA
+                            </Button>
+                          </div>
+                          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                            {rec.suggestedProducts.map((product, i) => (
+                              <li key={i} className="text-sm text-blue-700 flex items-center gap-1">
+                                <span className="h-1 w-1 bg-blue-400 rounded-full" />
+                                {product}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {rec.applicationMethod && (
+                        <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">Modalità di Applicazione</p>
+                          <p className="text-sm text-slate-700">{rec.applicationMethod}</p>
+                        </div>
+                      )}
+
+                      {rec.fertilizationAdvice && (
+                        <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Info className="h-4 w-4 text-green-600" />
+                            <p className="text-[10px] font-bold text-green-700 uppercase tracking-widest">Consiglio Nutrizionale</p>
+                          </div>
+                          <p className="text-sm text-green-800 italic">{rec.fertilizationAdvice}</p>
+                        </div>
+                      )}
 
                       {rec.warnings.length > 0 && (
                         <div className="flex items-start gap-2 p-2 bg-yellow-50 rounded-lg border border-yellow-200">
