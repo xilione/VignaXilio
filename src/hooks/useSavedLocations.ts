@@ -11,9 +11,11 @@ export function useSavedLocations() {
 
   useEffect(() => {
     if (!user) {
-      setSavedLocations([]);
-      setLoading(false);
-      return;
+      const timer = setTimeout(() => {
+        setSavedLocations([]);
+        setLoading(false);
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     const userRef = doc(db, 'users', user.uid);

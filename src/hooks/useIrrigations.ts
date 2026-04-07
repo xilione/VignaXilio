@@ -11,9 +11,11 @@ export function useIrrigations(locationName?: string) {
 
   useEffect(() => {
     if (!user) {
-      setIrrigations([]);
-      setLoading(false);
-      return;
+      const timer = setTimeout(() => {
+        setIrrigations([]);
+        setLoading(false);
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     let q = query(

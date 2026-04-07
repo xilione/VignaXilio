@@ -51,14 +51,21 @@ function App() {
   useEffect(() => {
     if (!selectedLocation) {
       fetchWeather(DEFAULT_LOCATION);
-      setSelectedLocation(DEFAULT_LOCATION);
+      // Use a timeout or defer the state update to avoid synchronous setState in effect
+      const timer = setTimeout(() => {
+        setSelectedLocation(DEFAULT_LOCATION);
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [fetchWeather, selectedLocation]);
 
   // Se l'utente ha vigne salvate e fa login, mostra la dashboard
   useEffect(() => {
     if (user && savedLocations.length > 0 && !selectedLocation && viewMode !== 'dashboard') {
-      setViewMode('dashboard');
+      const timer = setTimeout(() => {
+        setViewMode('dashboard');
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [user, savedLocations.length, selectedLocation, viewMode]);
 

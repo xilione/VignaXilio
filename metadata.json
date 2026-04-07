@@ -1,5 +1,5 @@
 {
   "name": "VignaMeteo",
   "description": "Assistente IA per vigneti con meteo, analisi immagini, sintesi vocale e consulenza su prodotti commerciali (con/senza patentino).",
-  "requestFramePermissions": []
+  "requestFramePermissions": ["camera", "microphone", "geolocation"]
 }

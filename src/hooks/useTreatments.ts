@@ -11,9 +11,11 @@ export function useTreatments(locationName?: string) {
 
   useEffect(() => {
     if (!user) {
-      setTreatments([]);
-      setLoading(false);
-      return;
+      const timer = setTimeout(() => {
+        setTreatments([]);
+        setLoading(false);
+      }, 0);
+      return () => clearTimeout(timer);
     }
 
     let q = query(

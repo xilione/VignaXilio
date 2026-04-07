@@ -15,14 +15,20 @@ import {
 } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 interface GroundingLink {
   uri: string;
   title?: string;
 }
 
 export function AIAssistant() {
+  const getAI = () => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      throw new Error("GEMINI_API_KEY is not defined");
+    }
+    return new GoogleGenAI({ apiKey });
+  };
+
   // State for Meteo
   const [meteoQuery, setMeteoQuery] = useState('Previsioni meteo per i vigneti in Toscana questa settimana');
   const [meteoResult, setMeteoResult] = useState('');
@@ -62,7 +68,7 @@ export function AIAssistant() {
     setMeteoResult('');
     setMeteoLinks([]);
     try {
-      const response = await ai.models.generateContent({
+      const response = await getAI().models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: meteoQuery,
         config: {
@@ -90,7 +96,7 @@ export function AIAssistant() {
     setProdottiResult('');
     setProdottiLinks([]);
     try {
-      const response = await ai.models.generateContent({
+      const response = await getAI().models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: prodottiQuery,
         config: {
@@ -130,7 +136,7 @@ export function AIAssistant() {
       const base64Full = await fileToBase64(imageFile);
       const base64Data = base64Full.split(',')[1];
       
-      const response = await ai.models.generateContent({
+      const response = await getAI().models.generateContent({
         model: 'gemini-3.1-pro-preview',
         contents: {
           parts: [
@@ -152,7 +158,7 @@ export function AIAssistant() {
     if (!text) return;
     setIsSpeaking(true);
     try {
-      const response = await ai.models.generateContent({
+      const response = await getAI().models.generateContent({
         model: 'gemini-2.5-flash-preview-tts',
         contents: [{ parts: [{ text }] }],
         config: {
