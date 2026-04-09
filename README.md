@@ -1,73 +1,43 @@
-# React + TypeScript + Vite
+# VignaMeteo - Istruzioni per l'esecuzione locale
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Questo progetto è stato generato con Google AI Studio. Segui questi passaggi per eseguirlo sul tuo computer.
 
-Currently, two official plugins are available:
+## Requisiti
+- **Node.js**: Versione 18 o superiore (scaricabile da [nodejs.org](https://nodejs.org/))
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Installazione
 
-## React Compiler
+1. Scarica e scompatta il file ZIP.
+2. Apri il terminale nella cartella del progetto.
+3. Installa le dipendenze:
+   ```bash
+   npm install
+   ```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Configurazione
+L'app richiede una chiave API di Gemini per le funzioni di intelligenza artificiale.
+1. Crea un file chiamato `.env` nella cartella principale.
+2. Aggiungi la tua chiave in questo modo:
+   ```env
+   GEMINI_API_KEY=inserisci_qui_la_tua_chiave
+   ```
+   *Puoi ottenere una chiave gratuita su [aistudio.google.com](https://aistudio.google.com/app/apikey).*
 
-## Expanding the ESLint configuration
+## Avvio dell'applicazione
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Modalità Sviluppo
+Per avviare l'app con ricarica automatica:
+```bash
+npm run dev
+```
+L'app sarà disponibile all'indirizzo `http://localhost:3000`.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### Modalità Produzione
+Per creare una versione ottimizzata e avviarla:
+```bash
+npm run build
+npm run start
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Note su Firebase
+L'app è configurata per collegarsi al database Firebase creato durante lo sviluppo. Finché non modifichi il file `firebase-applet-config.json`, i dati verranno salvati e letti dallo stesso database online.
