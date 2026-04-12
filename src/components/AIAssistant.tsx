@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { GoogleGenAI } from '@google/genai';
-import { Bot, Image as ImageIcon, Search, Loader2, Volume2, Beaker, ShieldCheck } from 'lucide-react';
+import { GoogleGenAI, Modality } from '@google/genai';
+import { Bot, Image as ImageIcon, Search, Loader2, Volume2, Beaker, ShieldCheck, Sparkles, Save, Trash2, History } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,6 +14,11 @@ import {
   SheetTrigger,
 } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useSavedLocations } from '@/hooks/useSavedLocations';
+import { useTreatments } from '@/hooks/useTreatments';
+import { useAIAdvice } from '@/hooks/useAIAdvice';
+import ReactMarkdown from 'react-markdown';
+import { toast } from 'sonner';
 
 interface GroundingLink {
   uri: string;
@@ -21,6 +26,10 @@ interface GroundingLink {
 }
 
 export function AIAssistant() {
+  const { savedLocations } = useSavedLocations();
+  const { treatments } = useTreatments();
+  const { advices, addAdvice, removeAdvice } = useAIAdvice();
+
   const getAI = () => {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -48,6 +57,10 @@ export function AIAssistant() {
   const [analisiResult, setAnalisiResult] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  // State for Consigli Personalizzati
+  const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
+  const [adviceResult, setAdviceResult] = useState('');
+
   // State for TTS
   const [isSpeaking, setIsSpeaking] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -72,7 +85,8 @@ export function AIAssistant() {
         model: 'gemini-3-flash-preview',
         contents: meteoQuery,
         config: {
-          tools: [{ googleSearch: {} }]
+          tools: [{ googleSearch: {} }],
+          toolConfig: { includeServerSideToolInvocations: true }
         }
       });
       setMeteoResult(response.text || 'Nessun risultato trovato.');
@@ -101,7 +115,8 @@ export function AIAssistant() {
         contents: prodottiQuery,
         config: {
           systemInstruction: "Sei un esperto agronomo specializzato in viticoltura. Quando consigli prodotti commerciali, specifica sempre se è necessario il 'patentino' (certificato di abilitazione all'acquisto e all'utilizzo dei prodotti fitosanitari) o se sono di libera vendita (PFnPE o PFnPO). Fornisci nomi commerciali reali e aggiornati disponibili sul mercato italiano.",
-          tools: [{ googleSearch: {} }]
+          tools: [{ googleSearch: {} }],
+          toolConfig: { includeServerSideToolInvocations: true }
         }
       });
       setProdottiResult(response.text || 'Nessun risultato trovato.');
@@ -154,6 +169,48 @@ export function AIAssistant() {
     }
   };
 
+  const handleGeneratePersonalizedAdvice = async () => {
+    setIsGeneratingAdvice(true);
+    setAdviceResult('');
+    try {
+      const context = `
+        Vigneti salvati: ${savedLocations.map(l => `${l.name} (${l.region}, fase: ${l.phenologicalStage || 'N/D'})`).join(', ')}
+        Ultimi trattamenti: ${treatments.slice(0, 5).map(t => `${t.date}: ${t.product} a ${t.locationName}`).join(', ')}
+      `;
+
+      const response = await getAI().models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `Basandoti sui miei vigneti e trattamenti recenti, dammi dei consigli agronomici personalizzati per i prossimi giorni. Considera le fasi fenologiche e suggerisci eventuali interventi preventivi o curativi. Sii conciso e usa Markdown.`,
+        config: {
+          systemInstruction: `Sei un consulente agronomico digitale esperto. Ecco il contesto dell'utente: ${context}. Fornisci consigli pratici, tecnici e tempestivi.`,
+          tools: [{ googleSearch: {} }],
+          toolConfig: { includeServerSideToolInvocations: true }
+        }
+      });
+      setAdviceResult(response.text || 'Nessun consiglio disponibile al momento.');
+    } catch (error) {
+      console.error(error);
+      setAdviceResult('Errore durante la generazione dei consigli.');
+    } finally {
+      setIsGeneratingAdvice(false);
+    }
+  };
+
+  const handleSaveAdvice = async (title: string, content: string, type: 'meteo' | 'prodotti' | 'analisi' | 'generale') => {
+    try {
+      await addAdvice({
+        title,
+        content,
+        date: new Date().toISOString(),
+        type
+      });
+      toast.success('Consiglio salvato con successo!');
+    } catch (error) {
+      console.error(error);
+      toast.error('Errore durante il salvataggio.');
+    }
+  };
+
   const playAudio = async (text: string) => {
     if (!text) return;
     setIsSpeaking(true);
@@ -162,7 +219,7 @@ export function AIAssistant() {
         model: 'gemini-2.5-flash-preview-tts',
         contents: [{ parts: [{ text }] }],
         config: {
-          responseModalities: ['AUDIO'],
+          responseModalities: [Modality.AUDIO],
           speechConfig: {
             voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } }
           }
@@ -183,7 +240,7 @@ export function AIAssistant() {
       }
     } catch (error) {
       console.error(error);
-      alert('Errore durante la generazione vocale.');
+      toast.error('Errore durante la generazione vocale.');
     } finally {
       setIsSpeaking(false);
     }
@@ -206,29 +263,87 @@ export function AIAssistant() {
             Assistente IA Vigna
           </SheetTitle>
           <SheetDescription className="text-green-100">
-            Consulenza agronomica, analisi foto e ricerca prodotti commerciali.
+            Consulenza agronomica personalizzata, analisi foto e ricerca prodotti.
           </SheetDescription>
         </SheetHeader>
 
-        <Tabs defaultValue="meteo" className="flex-1 flex flex-col overflow-hidden">
+        <Tabs defaultValue="consigli" className="flex-1 flex flex-col overflow-hidden">
           <div className="px-6 pt-4">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="meteo" className="flex items-center gap-2 text-xs">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="consigli" className="flex items-center gap-2 text-[10px] px-1">
+                <Sparkles className="h-3 w-3" />
+                Consigli
+              </TabsTrigger>
+              <TabsTrigger value="meteo" className="flex items-center gap-2 text-[10px] px-1">
                 <Search className="h-3 w-3" />
                 Meteo
               </TabsTrigger>
-              <TabsTrigger value="prodotti" className="flex items-center gap-2 text-xs">
+              <TabsTrigger value="prodotti" className="flex items-center gap-2 text-[10px] px-1">
                 <Beaker className="h-3 w-3" />
                 Prodotti
               </TabsTrigger>
-              <TabsTrigger value="analisi" className="flex items-center gap-2 text-xs">
+              <TabsTrigger value="analisi" className="flex items-center gap-2 text-[10px] px-1">
                 <ImageIcon className="h-3 w-3" />
                 Analisi
+              </TabsTrigger>
+              <TabsTrigger value="storia" className="flex items-center gap-2 text-[10px] px-1">
+                <History className="h-3 w-3" />
+                Storia
               </TabsTrigger>
             </TabsList>
           </div>
 
           <ScrollArea className="flex-1 p-6">
+            <TabsContent value="consigli" className="mt-0 space-y-4">
+              <div className="bg-green-50 border border-green-100 p-4 rounded-lg space-y-3">
+                <h3 className="font-semibold text-green-800 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4" />
+                  Consigli Personalizzati
+                </h3>
+                <p className="text-xs text-green-700">
+                  Genera un'analisi basata sui tuoi vigneti salvati e sui trattamenti recenti.
+                </p>
+                <Button 
+                  onClick={handleGeneratePersonalizedAdvice} 
+                  disabled={isGeneratingAdvice}
+                  className="w-full bg-green-700 hover:bg-green-800"
+                >
+                  {isGeneratingAdvice ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                  Genera Consigli
+                </Button>
+              </div>
+
+              {adviceResult && (
+                <div className="bg-muted p-4 rounded-lg space-y-3">
+                  <div className="flex justify-between items-start">
+                    <h4 className="font-semibold text-sm text-green-800">Analisi IA:</h4>
+                    <div className="flex gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleSaveAdvice('Consiglio Personalizzato', adviceResult, 'generale')}
+                        className="h-8 px-2 text-green-700"
+                      >
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => playAudio(adviceResult)}
+                        disabled={isSpeaking}
+                        className="h-8 px-2 text-green-700"
+                      >
+                        {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="text-sm prose prose-sm max-w-none text-foreground">
+                    <ReactMarkdown>{adviceResult}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
             <TabsContent value="meteo" className="mt-0 space-y-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Cosa vuoi cercare?</label>
@@ -249,18 +364,28 @@ export function AIAssistant() {
                 <div className="bg-muted p-4 rounded-lg space-y-3">
                   <div className="flex justify-between items-start">
                     <h4 className="font-semibold text-sm text-green-800">Risultato:</h4>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => playAudio(meteoResult)}
-                      disabled={isSpeaking}
-                      className="h-8 px-2 text-green-700"
-                    >
-                      {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleSaveAdvice('Meteo: ' + meteoQuery, meteoResult, 'meteo')}
+                        className="h-8 px-2 text-green-700"
+                      >
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => playAudio(meteoResult)}
+                        disabled={isSpeaking}
+                        className="h-8 px-2 text-green-700"
+                      >
+                        {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="text-sm whitespace-pre-wrap text-foreground">
-                    {meteoResult}
+                  <div className="text-sm prose prose-sm max-w-none text-foreground">
+                    <ReactMarkdown>{meteoResult}</ReactMarkdown>
                   </div>
                   {meteoLinks.length > 0 && (
                     <div className="pt-3 border-t border-border">
@@ -306,18 +431,28 @@ export function AIAssistant() {
                 <div className="bg-muted p-4 rounded-lg space-y-3">
                   <div className="flex justify-between items-start">
                     <h4 className="font-semibold text-sm text-green-800">Consigli Prodotti:</h4>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      onClick={() => playAudio(prodottiResult)}
-                      disabled={isSpeaking}
-                      className="h-8 px-2 text-green-700"
-                    >
-                      {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => handleSaveAdvice('Prodotti: ' + prodottiQuery, prodottiResult, 'prodotti')}
+                        className="h-8 px-2 text-green-700"
+                      >
+                        <Save className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => playAudio(prodottiResult)}
+                        disabled={isSpeaking}
+                        className="h-8 px-2 text-green-700"
+                      >
+                        {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+                      </Button>
+                    </div>
                   </div>
-                  <div className="text-sm whitespace-pre-wrap text-foreground prose prose-sm max-w-none">
-                    {prodottiResult}
+                  <div className="text-sm prose prose-sm max-w-none text-foreground">
+                    <ReactMarkdown>{prodottiResult}</ReactMarkdown>
                   </div>
                   {prodottiLinks.length > 0 && (
                     <div className="pt-3 border-t border-border">
@@ -379,19 +514,80 @@ export function AIAssistant() {
                   <div className="bg-muted p-4 rounded-lg space-y-3 mt-4">
                     <div className="flex justify-between items-start">
                       <h4 className="font-semibold text-sm text-green-800">Analisi:</h4>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={() => playAudio(analisiResult)}
-                        disabled={isSpeaking}
-                        className="h-8 px-2 text-green-700"
-                      >
-                        {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => handleSaveAdvice('Analisi Foto', analisiResult, 'analisi')}
+                          className="h-8 px-2 text-green-700"
+                        >
+                          <Save className="h-4 w-4" />
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm" 
+                          onClick={() => playAudio(analisiResult)}
+                          disabled={isSpeaking}
+                          className="h-8 px-2 text-green-700"
+                        >
+                          {isSpeaking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Volume2 className="h-4 w-4" />}
+                        </Button>
+                      </div>
                     </div>
-                    <div className="text-sm whitespace-pre-wrap text-foreground">
-                      {analisiResult}
+                    <div className="text-sm prose prose-sm max-w-none text-foreground">
+                      <ReactMarkdown>{analisiResult}</ReactMarkdown>
                     </div>
+                  </div>
+                )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="storia" className="mt-0 space-y-4">
+              <div className="space-y-4">
+                <h3 className="font-semibold text-green-800 flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  Consigli Salvati
+                </h3>
+                {advices.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Non hai ancora salvato alcun consiglio.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {advices.map((advice) => (
+                      <div key={advice.id} className="bg-muted p-4 rounded-lg space-y-2 border border-border">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-semibold text-sm text-green-800">{advice.title}</h4>
+                            <p className="text-[10px] text-muted-foreground">
+                              {new Date(advice.date).toLocaleDateString()} - {advice.type}
+                            </p>
+                          </div>
+                          <div className="flex gap-1">
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => playAudio(advice.content)}
+                              disabled={isSpeaking}
+                              className="h-8 px-2 text-green-700"
+                            >
+                              <Volume2 className="h-4 w-4" />
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              onClick={() => advice.id && removeAdvice(advice.id)}
+                              className="h-8 px-2 text-red-600 hover:text-red-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="text-xs prose prose-sm max-w-none text-foreground line-clamp-3 overflow-hidden">
+                          <ReactMarkdown>{advice.content}</ReactMarkdown>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
